@@ -208,17 +208,34 @@ def scan_email(
 
     text_ml_score = float(nlp_result.get("text_ml_score", 0.0))
 
-    # --- Attachment malware scanning ---
+    # --- Attachment scanning ---
     malware_hits = scan_attachments(payload.attachments or [])
 
-    # --- Deterministic risk calculation ---
-    # NOTE: this matches YOUR current risk_engine expectations
-    risk = calculate_risk(
-        url_results=url_results,
-        text_findings=heuristic_text_findings,
-        malware_hits=malware_hits,
-        text_ml_score=text_ml_score
-    )
+    # --- Risk calculation (SAFE WRAPPER) ---
+    try:
+        risk = calculate_risk(
+            url_results=url_results,
+            text_findings=heuristic_text_findings,
+            malware_hits=malware_hits,
+            text_ml_score=text_ml_score
+        )
+    except Exception as e:
+        # CRITICAL: log real error for Render
+        print("RISK_ENGINE_ERROR:", repr(e))
+
+        # Fallback deterministic risk
+        score = min(
+            url_results.get("score", 0)
+            + heuristic_text_findings.get("score", 0)
+            + text_ml_score,
+            1.0
+        )
+
+        risk = {
+            "score": round(score, 2),
+            "verdict": "SUSPICIOUS" if score >= 0.5 else "SAFE",
+            "reasons": ["Fallback risk calculation used"]
+        }
 
     return success_response({
         "risk": risk,
