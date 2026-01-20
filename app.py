@@ -1,4 +1,3 @@
-print("NLP_SERVICE_URL =", NLP_SERVICE_URL)
 import os
 from typing import List, Optional
 
@@ -33,7 +32,7 @@ NLP_SERVICE_URL = os.getenv("NLP_SERVICE_URL")
 
 if not API_KEY:
     raise RuntimeError("API_KEY environment variable is required")
-
+print("NLP_SERVICE_URL =", NLP_SERVICE_URL)
 # -----------------------------------------------------------------------------
 # CORS (temporary – tighten later)
 # -----------------------------------------------------------------------------
