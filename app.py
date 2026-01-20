@@ -1,3 +1,4 @@
+print("NLP_SERVICE_URL =", NLP_SERVICE_URL)
 import os
 from typing import List, Optional
 
