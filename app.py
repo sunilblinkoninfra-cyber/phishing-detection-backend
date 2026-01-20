@@ -156,24 +156,48 @@ class EmailScanRequest(BaseModel):
 # NLP ML Client (SAFE + RENDER-SAFE)
 # -----------------------------------------------------------------------------
 
-def call_nlp_service(subject: str, body: str):
+def call_nlp_service(subject: str, body: str) -> dict:
     if not NLP_SERVICE_URL:
+        print("NLP_SERVICE_URL not set")
         return {
             "text_ml_score": 0.0,
             "signals": [],
-            "model_version": "nlp-disabled"
+            "model_version": "nlp-unavailable"
         }
+
+    payload = {
+        "subject": subject,
+        "body": body
+    }
 
     try:
         resp = requests.post(
             NLP_SERVICE_URL,
-            json={"subject": subject, "body": body},
+            json=payload,
             timeout=5
         )
-        if resp.status_code == 200:
-            return resp.json()
+
+        print("NLP STATUS:", resp.status_code)
+        print("NLP RAW RESPONSE:", resp.text)
+
+        if resp.status_code != 200:
+            raise RuntimeError(f"NLP service returned {resp.status_code}")
+
+        data = resp.json()
+
+        return {
+            "text_ml_score": float(data.get("text_ml_score", 0.0)),
+            "signals": data.get("signals", []),
+            "model_version": data.get("model_version", "unknown")
+        }
+
     except Exception as e:
         print("NLP_SERVICE_ERROR:", repr(e))
+        return {
+            "text_ml_score": 0.0,
+            "signals": [],
+            "model_version": "nlp-unavailable"
+        }
 
     # Fail-safe fallback
     return {
