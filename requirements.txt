@@ -7,8 +7,9 @@ uvicorn
 python-multipart
 joblib
 jinja2
-fastapi
-uvicorn
 python-jose[cryptography]
 pydantic
-
+clamd
+tldextract
+python-magic
+requests
