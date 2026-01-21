@@ -157,7 +157,7 @@ class EmailScanRequest(BaseModel):
 # -----------------------------------------------------------------------------
 
 def call_nlp_service(subject: str, body: str) -> dict:
-print("CALLING NLP SERVICE")
+    print("CALLING NLP SERVICE")
 
     if not NLP_SERVICE_URL:
         print("NLP_SERVICE_URL not set")
@@ -179,16 +179,15 @@ print("CALLING NLP SERVICE")
             timeout=5
         )
 
-print("NLP RESPONSE STATUS:", resp.status_code)
-print("NLP RESPONSE TEXT:", resp.text)
-
         print("NLP STATUS:", resp.status_code)
-        print("NLP RAW RESPONSE:", resp.text)
+        print("NLP BODY:", resp.text)
 
         if resp.status_code != 200:
             raise RuntimeError(f"NLP returned {resp.status_code}")
 
         data = resp.json()
+
+        print("NLP PARSED SCORE:", data.get("text_ml_score"))
 
         return {
             "text_ml_score": float(data.get("text_ml_score", 0.0)),
@@ -198,9 +197,6 @@ print("NLP RESPONSE TEXT:", resp.text)
 
     except Exception as e:
         print("NLP_SERVICE_ERROR:", repr(e))
-
-print("NLP PARSED SCORE:", data.get("text_ml_score"))
-
         return {
             "text_ml_score": 0.0,
             "signals": [],
