@@ -20,7 +20,7 @@ from scanner.risk_engine import calculate_risk
 
 app = FastAPI(
     title="PhishGuard Email Security API",
-    version="1.3.0",
+    version="1.3.1",
     description="Email phishing, malware, NLP, and threat intelligence detection API"
 )
 
@@ -75,12 +75,12 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return error_response("Internal server error", 500)
 
 # ------------------------------------------------------------------
-# Health
+# Health (SINGLE definition)
 # ------------------------------------------------------------------
 
 @app.get("/health")
 def health():
-    return success_response({"status": "ok"})
+    return {"status": "ok"}
 
 # ------------------------------------------------------------------
 # Schemas
@@ -98,7 +98,7 @@ class EmailScanRequest(BaseModel):
     attachments: List[Attachment] = []
 
 # ------------------------------------------------------------------
-# NLP Client (unchanged, safe fallback)
+# NLP Client (safe fallback)
 # ------------------------------------------------------------------
 
 def call_nlp_service(subject: str, body: str) -> dict:
@@ -149,15 +149,23 @@ def scan_email(
     # --------------------------------------------------------------
     url_analysis = analyze_urls(payload.urls or [])
 
-    # Normalize legacy structure
     url_results = [
         {"risk": "high"} if url_analysis.get("score", 0) > 0 else {"risk": "low"}
     ]
 
     # --------------------------------------------------------------
-    # URL Threat Intelligence (NEW)
+    # URL Threat Intelligence (SAFE)
     # --------------------------------------------------------------
-    url_reputation = analyze_urls_reputation(payload.urls or [])
+    url_reputation_raw = analyze_urls_reputation(payload.urls or [])
+
+    if isinstance(url_reputation_raw, dict):
+        url_reputation = url_reputation_raw
+        url_ml_score = float(url_reputation.get("score", 0.0))
+        url_ml_signals = url_reputation.get("signals", [])
+    else:
+        url_reputation = {"score": 0.0, "signals": []}
+        url_ml_score = 0.0
+        url_ml_signals = []
 
     # --------------------------------------------------------------
     # Heuristic email analysis
@@ -174,9 +182,13 @@ def scan_email(
     text_ml_score = float(nlp_result.get("text_ml_score", 0.0))
 
     # --------------------------------------------------------------
-    # Attachment malware scan
+    # Attachment malware scan (SAFE)
     # --------------------------------------------------------------
-    malware_hits = scan_attachments(payload.attachments or [])
+    try:
+        malware_hits = scan_attachments(payload.attachments or [])
+    except Exception as e:
+        print("CLAMAV_ERROR:", repr(e))
+        malware_hits = []
 
     # --------------------------------------------------------------
     # Risk engine
@@ -186,8 +198,8 @@ def scan_email(
         text_findings=heuristic_text_findings,
         malware_hits=malware_hits,
         text_ml_score=text_ml_score,
-        url_ml_score=url_reputation.get("score", 0.0),
-        url_ml_signals=url_reputation.get("signals", [])
+        url_ml_score=url_ml_score,
+        url_ml_signals=url_ml_signals
     )
 
     return success_response({
@@ -201,12 +213,12 @@ def scan_email(
             "details": malware_hits
         }
     })
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+
+# ------------------------------------------------------------------
+# Entry point (Render-safe)
+# ------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import os
     import uvicorn
 
     port = int(os.environ.get("PORT", 10000))
