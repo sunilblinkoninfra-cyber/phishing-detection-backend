@@ -240,6 +240,32 @@ def require_soc_role(actor_role: str, allowed: List[str]):
 # SOC Action Helpers (IMMUTABLE)
 # --------------------------------------------------
 
+def call_nlp_service(subject: str, body: str) -> dict:
+    """
+    Safe NLP call. Never crashes the pipeline.
+    """
+    if not NLP_SERVICE_URL:
+        return {
+            "text_ml_score": 0.0,
+            "model_version": "nlp_disabled"
+        }
+
+    try:
+        resp = requests.post(
+            NLP_SERVICE_URL,
+            json={"subject": subject, "body": body},
+            timeout=2
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        print("NLP SERVICE ERROR:", repr(e))
+        return {
+            "text_ml_score": 0.0,
+            "model_version": "nlp_error"
+        }
+
+
 def record_soc_action(alert_id: str, action: str, actor: dict, notes: Optional[str]):
     conn = get_db()
     cur = conn.cursor()
