@@ -17,3 +17,6 @@ python-jose[cryptography]
 clamd
 python-magic
 tldextract
+
+psycopg2-binary
+
