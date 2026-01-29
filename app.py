@@ -8,6 +8,8 @@ import requests
 from fastapi import FastAPI, Depends, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from db import get_db
@@ -27,7 +29,18 @@ from scanner.risk_engine import calculate_risk
 # App init (Swagger disabled — backend authority)
 # --------------------------------------------------
 
-app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="PhishGuardAI Backend", docs_url=None, redoc_url=None, openapi_url=None)
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    print("UNHANDLED_EXCEPTION:", repr(exc))
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": "error",
+            "message": "Internal server error"
+        }
+    )
 
 # --------------------------------------------------
 # Environment
@@ -385,17 +398,24 @@ def ingest_email(
         malware_hits = []
 
     # 3️⃣ Weighted risk
-    risk_score = calculate_risk(
-        text_ml_score=nlp_result.get("text_ml_score", 0.0) * policy["weights"]["nlp"],
-        text_findings=text_heuristic,
-        url_result=url_result,
-        malware_hits=malware_hits,
-    )
+   risk_eval = calculate_risk(
+    text_ml_score=nlp_result.get("text_ml_score", 0.0),
+    text_findings=text_heuristic,
+    url_result=url_result,
+    malware_hits=malware_hits,
+)
+
+# 🔐 HARD GUARANTEE: risk_score is ALWAYS an int
+risk_score = int(
+    risk_eval["risk_score"]
+    if isinstance(risk_eval, dict)
+    else risk_eval
+)
 
     # 4️⃣ Policy thresholds
-    if risk_score > policy["warm"]:
+    if risk_score >= policy["warm"]:
         category, decision = EmailCategory.HOT, Decision.QUARANTINE
-    elif risk_score > policy["cold"]:
+    elif risk_score >= policy["cold"]:
         category, decision = EmailCategory.WARM, Decision.ALLOW
     else:
         category, decision = EmailCategory.COLD, Decision.ALLOW
